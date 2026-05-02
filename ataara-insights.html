@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ataara — SoundCloud Insights</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:      #0a0a0a;
+    --bg2:     #111111;
+    --bg3:     #1a1a1a;
+    --bg4:     #222222;
+    --border:  rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --pink:    #ff2d78;
+    --pink2:   #ff6baa;
+    --pink3:   rgba(255,45,120,0.12);
+    --text:    #f0f0f0;
+    --text2:   #888;
+    --text3:   #555;
+    --mono:    'DM Mono', monospace;
+    --sans:    'Syne', sans-serif;
+  }
+
+  html, body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── LAYOUT ── */
+  .page { max-width: 1100px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 36px;
+    flex-wrap: wrap;
+    gap: 16px;
+  }
+  .header-left { display: flex; align-items: center; gap: 14px; }
+  .avatar {
+    width: 48px; height: 48px; border-radius: 50%;
+    border: 2px solid var(--pink);
+    object-fit: cover;
+    background: var(--bg3);
+  }
+  .avatar-placeholder {
+    width: 48px; height: 48px; border-radius: 50%;
+    border: 2px solid var(--pink);
+    background: var(--bg3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; font-weight: 800; color: var(--pink);
+  }
+  .header-name { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+  .header-sub { font-size: 11px; color: var(--text2); font-family: var(--mono); margin-top: 2px; }
+  .header-right { display: flex; align-items: center; gap: 10px; }
+
+  .live-dot-wrap {
+    display: flex; align-items: center; gap: 6px;
+    background: rgba(255,45,120,0.08);
+    border: 1px solid rgba(255,45,120,0.25);
+    border-radius: 20px;
+    padding: 5px 12px;
+    font-size: 10px; font-family: var(--mono); color: var(--pink2);
+    letter-spacing: 0.08em;
+  }
+  .live-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--pink);
+    animation: blink 1.4s infinite;
+  }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+  select.range-select {
+    background: var(--bg2);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    outline: none;
+    appearance: none;
+    -webkit-appearance: none;
+    padding-right: 28px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23888'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+  }
+  select.range-select:hover { border-color: var(--pink); }
+
+  /* ── HERO PLAYS ── */
+  .hero { margin-bottom: 24px; }
+  .hero-num {
+    font-size: clamp(36px, 6vw, 56px);
+    font-weight: 800;
+    letter-spacing: -2px;
+    line-height: 1;
+  }
+  .hero-since {
+    font-size: 13px; color: var(--text2); font-family: var(--mono);
+    display: inline; margin-left: 8px; letter-spacing: 0;
+  }
+  .hero-today {
+    font-size: clamp(18px, 3vw, 26px);
+    font-weight: 700;
+    color: var(--pink);
+    display: block;
+    margin-top: 4px;
+    font-family: var(--mono);
+    min-height: 32px;
+  }
+
+  /* ── STAT PILLS ── */
+  .pills { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 28px; }
+  .pill {
+    border: 1px solid var(--border2);
+    border-radius: 20px;
+    padding: 6px 16px;
+    font-size: 12px;
+    color: var(--text2);
+    font-family: var(--mono);
+    cursor: default;
+    white-space: nowrap;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+  }
+  .pill.hot { border-color: var(--pink); color: var(--pink); background: var(--pink3); }
+
+  /* ── MAIN GRID ── */
+  .main-grid {
+    display: grid;
+    grid-template-columns: 1fr 280px;
+    gap: 16px;
+  }
+  @media (max-width: 700px) { .main-grid { grid-template-columns: 1fr; } }
+
+  /* ── PANEL ── */
+  .panel {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .panel-title {
+    font-size: 10px;
+    color: var(--text3);
+    font-family: var(--mono);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 16px;
+  }
+
+  /* ── CHART ── */
+  .chart-wrap { position: relative; width: 100%; height: 200px; }
+
+  /* ── RIGHT COL ── */
+  .right-col { display: flex; flex-direction: column; gap: 14px; }
+
+  /* ── OVERVIEW STATS ── */
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .stat-box { }
+  .stat-val { font-size: 24px; font-weight: 700; }
+  .stat-lbl { font-size: 10px; color: var(--text2); font-family: var(--mono); margin-top: 3px; }
+
+  /* ── TRACK LIST ── */
+  .track-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 0;
+    border-bottom: 1px solid var(--border);
+    animation: fadeIn 0.4s ease;
+  }
+  .track-item:last-child { border-bottom: none; padding-bottom: 0; }
+  @keyframes fadeIn { from{opacity:0;transform:translateY(4px)} to{opacity:1;transform:translateY(0)} }
+
+  .track-art {
+    width: 38px; height: 38px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex-shrink: 0;
+    background: var(--bg4);
+  }
+  .track-art-ph {
+    width: 38px; height: 38px;
+    border-radius: 6px;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, var(--bg3), var(--bg4));
+    display: flex; align-items: center; justify-content: center;
+  }
+  .track-info { flex: 1; min-width: 0; }
+  .track-name {
+    font-size: 12px; font-weight: 700;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    color: var(--text);
+    line-height: 1.3;
+  }
+  .track-meta { font-size: 10px; color: var(--text2); font-family: var(--mono); margin-top: 2px; }
+  .track-plays { font-size: 11px; color: var(--pink); font-family: var(--mono); font-weight: 500; white-space: nowrap; }
+
+  /* ── LOADING / ERROR ── */
+  .loading-msg {
+    display: flex; align-items: center; justify-content: center;
+    height: 200px; color: var(--text2); font-family: var(--mono); font-size: 13px;
+    gap: 10px;
+  }
+  .spinner {
+    width: 16px; height: 16px; border: 2px solid var(--border2);
+    border-top-color: var(--pink); border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .error-msg {
+    color: #ff6060; font-family: var(--mono); font-size: 11px;
+    padding: 8px 12px; background: rgba(255,60,60,0.08);
+    border: 1px solid rgba(255,60,60,0.2);
+    border-radius: 6px; margin-top: 12px;
+  }
+
+  /* ── REFRESH INFO ── */
+  .refresh-row {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 10px;
+    font-size: 10px; color: var(--text3); font-family: var(--mono);
+  }
+
+  /* ── FOOTER ── */
+  .footer {
+    margin-top: 40px;
+    text-align: center;
+    font-size: 10px;
+    color: var(--text3);
+    font-family: var(--mono);
+  }
+  .footer a { color: var(--text2); text-decoration: none; }
+  .footer a:hover { color: var(--pink); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- HEADER -->
+  <div class="header">
+    <div class="header-left">
+      <div id="avatarWrap">
+        <div class="avatar-placeholder" id="avatarPh">A</div>
+      </div>
+      <div>
+        <div class="header-name">ataara</div>
+        <div class="header-sub">soundcloud.com/ataara</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <select class="range-select" id="rangeSelect">
+        <option value="all">All time</option>
+        <option value="year">This year</option>
+        <option value="month">Last 30 days</option>
+      </select>
+      <div class="live-dot-wrap"><span class="live-dot"></span>Live stats</div>
+    </div>
+  </div>
+
+  <!-- HERO -->
+  <div class="hero">
+    <div>
+      <span class="hero-num" id="heroPlays">—</span>
+      <span class="hero-since">total plays</span>
+    </div>
+    <div class="hero-today" id="heroToday">&nbsp;</div>
+  </div>
+
+  <!-- PILLS -->
+  <div class="pills" id="pillsRow">
+    <div class="pill hot" id="pill-plays">▶ — plays</div>
+    <div class="pill" id="pill-likes">♡ — likes</div>
+    <div class="pill" id="pill-comments">✉ — comments</div>
+    <div class="pill" id="pill-reposts">↻ — reposts</div>
+  </div>
+
+  <!-- MAIN GRID -->
+  <div class="main-grid">
+
+    <!-- CHART PANEL -->
+    <div class="panel">
+      <div class="panel-title" id="chartTitle">Plays by track</div>
+      <div id="chartArea">
+        <div class="loading-msg"><div class="spinner"></div> Loading data…</div>
+      </div>
+      <div class="refresh-row">
+        <span id="lastUpdate">—</span>
+        <span>refreshes every 30s</span>
+      </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="right-col">
+
+      <!-- OVERVIEW -->
+      <div class="panel">
+        <div class="panel-title">Overview · Totals</div>
+        <div class="stats-grid">
+          <div class="stat-box"><div class="stat-val" id="ov-plays">—</div><div class="stat-lbl">Plays</div></div>
+          <div class="stat-box"><div class="stat-val" id="ov-likes">—</div><div class="stat-lbl">Likes</div></div>
+          <div class="stat-box"><div class="stat-val" id="ov-comments">—</div><div class="stat-lbl">Comments</div></div>
+          <div class="stat-box"><div class="stat-val" id="ov-reposts">—</div><div class="stat-lbl">Reposts</div></div>
+        </div>
+      </div>
+
+      <!-- TOP TRACKS -->
+      <div class="panel" style="flex:1">
+        <div class="panel-title">Top tracks · by plays</div>
+        <div id="trackList">
+          <div class="loading-msg" style="height:120px"><div class="spinner"></div></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="errMsg"></div>
+
+  <div class="footer">
+    Built with SoundCloud API v2 &nbsp;·&nbsp;
+    <a href="https://soundcloud.com/ataara" target="_blank">soundcloud.com/ataara</a>
+  </div>
+</div>
+
+<script>
+const CLIENT_ID   = '1Gbi6DBGBMULQH8MuhNvI1HzL9AiX2Pa';
+const APP_VERSION = '1777562780';
+const USERNAME    = 'ataara';
+const BASE        = 'https://api-v2.soundcloud.com';
+
+let allTracks = [];
+let chart     = null;
+let userId    = null;
+
+function fmt(n) {
+  if (n === null || n === undefined) return '—';
+  if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
+  if (n >= 1000)    return (n/1000).toFixed(1) + 'K';
+  return n.toLocaleString();
+}
+function fmtFull(n) { return (n||0).toLocaleString(); }
+function timeNow() {
+  return new Date().toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit',second:'2-digit'});
+}
+
+async function apiFetch(url) {
+  const sep = url.includes('?') ? '&' : '?';
+  const full = url + sep + `client_id=${CLIENT_ID}&app_version=${APP_VERSION}&app_locale=en`;
+  const r = await fetch(full);
+  if (!r.ok) throw new Error(`HTTP ${r.status} — ${url}`);
+  return r.json();
+}
+
+async function resolveUser() {
+  const data = await apiFetch(`${BASE}/resolve?url=https://soundcloud.com/${USERNAME}`);
+  return data;
+}
+
+async function fetchAllTracks(uid) {
+  let tracks = [];
+  let nextHref = `${BASE}/users/${uid}/tracks?limit=200&representation=compact`;
+  while (nextHref) {
+    const data = await apiFetch(nextHref.includes('client_id') ? nextHref.split('?')[0] + '?' + nextHref.split('?')[1].replace(/client_id=[^&]+&?/,'') : nextHref);
+    if (data.collection) tracks = tracks.concat(data.collection);
+    nextHref = data.next_href || null;
+    if (tracks.length > 1000) break;
+  }
+  return tracks;
+}
+
+function calcTotals(tracks) {
+  return tracks.reduce((acc, t) => {
+    acc.plays    += (t.playback_count  || 0);
+    acc.likes    += (t.likes_count     || 0);
+    acc.comments += (t.comment_count   || 0);
+    acc.reposts  += (t.reposts_count   || 0);
+    return acc;
+  }, {plays:0, likes:0, comments:0, reposts:0});
+}
+
+function updateUI(tracks, user) {
+  allTracks = tracks;
+  const totals = calcTotals(tracks);
+
+  // Avatar
+  if (user && user.avatar_url) {
+    const av = document.createElement('img');
+    av.className = 'avatar';
+    av.src = user.avatar_url.replace('-large','-t200x200');
+    av.alt = USERNAME;
+    document.getElementById('avatarPh').replaceWith(av);
+  }
+
+  // Hero
+  document.getElementById('heroPlays').textContent = fmtFull(totals.plays);
+  document.getElementById('heroToday').textContent  = tracks.length + ' tracks published';
+
+  // Pills
+  document.getElementById('pill-plays').textContent    = '▶ ' + fmtFull(totals.plays) + ' plays';
+  document.getElementById('pill-likes').textContent    = '♡ ' + fmtFull(totals.likes) + ' likes';
+  document.getElementById('pill-comments').textContent = '✉ ' + fmtFull(totals.comments) + ' comments';
+  document.getElementById('pill-reposts').textContent  = '↻ ' + fmtFull(totals.reposts) + ' reposts';
+
+  // Overview
+  document.getElementById('ov-plays').textContent    = fmt(totals.plays);
+  document.getElementById('ov-likes').textContent    = fmt(totals.likes);
+  document.getElementById('ov-comments').textContent = fmt(totals.comments);
+  document.getElementById('ov-reposts').textContent  = fmt(totals.reposts);
+
+  // Chart
+  renderChart(tracks);
+
+  // Top tracks
+  renderTracks(tracks);
+
+  // Timestamp
+  document.getElementById('lastUpdate').textContent = 'Updated ' + timeNow();
+  document.getElementById('errMsg').innerHTML = '';
+}
+
+function renderChart(tracks) {
+  const rangeVal = document.getElementById('rangeSelect').value;
+  let label, data, colors;
+
+  if (rangeVal === 'all') {
+    // Group by year of created_at
+    const byYear = {};
+    tracks.forEach(t => {
+      const y = new Date(t.created_at).getFullYear();
+      byYear[y] = (byYear[y] || 0) + (t.playback_count || 0);
+    });
+    const years = Object.keys(byYear).sort();
+    label = years;
+    data  = years.map(y => byYear[y]);
+    document.getElementById('chartTitle').textContent = 'Plays by year';
+  } else if (rangeVal === 'year') {
+    // Current year, group by month
+    const now = new Date();
+    const curYear = now.getFullYear();
+    const byMonth = new Array(12).fill(0);
+    tracks.forEach(t => {
+      if (new Date(t.created_at).getFullYear() === curYear) {
+        const m = new Date(t.created_at).getMonth();
+        byMonth[m] += (t.playback_count || 0);
+      }
+    });
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    label = months.slice(0, now.getMonth()+1);
+    data  = byMonth.slice(0, now.getMonth()+1);
+    document.getElementById('chartTitle').textContent = 'Plays by month (' + curYear + ')';
+  } else {
+    // Top 10 tracks by plays
+    const top = [...tracks].sort((a,b) => (b.playback_count||0)-(a.playback_count||0)).slice(0,10);
+    label = top.map(t => t.title.length > 18 ? t.title.slice(0,16)+'…' : t.title);
+    data  = top.map(t => t.playback_count || 0);
+    document.getElementById('chartTitle').textContent = 'Top 10 tracks · plays';
+  }
+
+  const chartArea = document.getElementById('chartArea');
+  chartArea.innerHTML = '<div class="chart-wrap"><canvas id="mainCanvas" role="img" aria-label="Plays chart for ataara">Plays data</canvas></div>';
+
+  const ctx = document.getElementById('mainCanvas').getContext('2d');
+  if (chart) { chart.destroy(); chart = null; }
+
+  const isHorizontal = rangeVal === 'month';
+  const barColors = data.map((_, i) => i % 2 === 0 ? '#ff2d78' : '#6b1535');
+
+  chart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: label,
+      datasets: [{
+        data: data,
+        backgroundColor: barColors,
+        borderRadius: 5,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      indexAxis: 'x',
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1a1a1a',
+          borderColor: '#ff2d78',
+          borderWidth: 1,
+          titleColor: '#ff6baa',
+          bodyColor: '#f0f0f0',
+          titleFont: { family: 'DM Mono', size: 11 },
+          bodyFont: { family: 'DM Mono', size: 12 },
+          callbacks: { label: c => ' ' + c.parsed.y.toLocaleString() + ' plays' }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          ticks: { color: '#555', font: { family: 'DM Mono', size: 10 }, maxRotation: 35, autoSkip: false },
+          border: { color: 'rgba(255,255,255,0.06)' }
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.04)' },
+          ticks: {
+            color: '#555',
+            font: { family: 'DM Mono', size: 10 },
+            callback: v => v >= 1000 ? (v/1000).toFixed(0)+'K' : v
+          },
+          border: { color: 'rgba(255,255,255,0.06)' }
+        }
+      }
+    }
+  });
+}
+
+function renderTracks(tracks) {
+  const top = [...tracks]
+    .sort((a,b) => (b.playback_count||0)-(a.playback_count||0))
+    .slice(0, 6);
+
+  const el = document.getElementById('trackList');
+  if (!top.length) { el.innerHTML = '<div style="color:#555;font-family:var(--mono);font-size:12px;padding:12px 0">No tracks found</div>'; return; }
+
+  el.innerHTML = top.map(t => {
+    const art = t.artwork_url
+      ? `<img class="track-art" src="${t.artwork_url.replace('-large','-t67x67')}" alt="" loading="lazy">`
+      : `<div class="track-art-ph"><svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="4" width="3" height="8" rx="1" fill="#ff2d78"/><rect x="6.5" y="1" width="3" height="14" rx="1" fill="#ff6baa"/><rect x="11" y="4" width="3" height="8" rx="1" fill="#ff2d78"/></svg></div>`;
+    const meta = [
+      t.likes_count    ? '♡ '+fmt(t.likes_count)    : null,
+      t.comment_count  ? '✉ '+fmt(t.comment_count)  : null,
+      t.reposts_count  ? '↻ '+fmt(t.reposts_count)  : null,
+    ].filter(Boolean).join('  ');
+    const scLink = t.permalink_url || `https://soundcloud.com/${USERNAME}`;
+    return `
+    <div class="track-item">
+      <a href="${scLink}" target="_blank" style="flex-shrink:0">${art}</a>
+      <div class="track-info">
+        <a href="${scLink}" target="_blank" style="text-decoration:none">
+          <div class="track-name">${t.title}</div>
+        </a>
+        <div class="track-meta">${meta || '—'}</div>
+      </div>
+      <div class="track-plays">${fmt(t.playback_count)}</div>
+    </div>`;
+  }).join('');
+}
+
+function showError(msg) {
+  document.getElementById('errMsg').innerHTML = `<div class="error-msg">⚠ ${msg}</div>`;
+}
+
+async function loadData() {
+  try {
+    if (!userId) {
+      const user = await resolveUser();
+      userId = user.id;
+      // Update avatar immediately
+      if (user.avatar_url) {
+        const ph = document.getElementById('avatarPh');
+        if (ph) {
+          const av = document.createElement('img');
+          av.className = 'avatar';
+          av.src = user.avatar_url.replace('-large','-t200x200');
+          av.alt = USERNAME;
+          ph.replaceWith(av);
+        }
+      }
+    }
+    const tracks = await fetchAllTracks(userId);
+    // Need user object for avatar only on first load
+    updateUI(tracks, null);
+  } catch(e) {
+    showError(e.message);
+    document.getElementById('lastUpdate').textContent = 'Error at ' + timeNow();
+  }
+}
+
+// Initial load
+loadData();
+// Refresh every 30 seconds
+setInterval(loadData, 30000);
+
+// Range change re-renders chart only (data already loaded)
+document.getElementById('rangeSelect').addEventListener('change', () => {
+  if (allTracks.length) renderChart(allTracks);
+});
+</script>
+</body>
+</html>
